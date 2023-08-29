@@ -288,3 +288,7 @@ func (t *StateTrie) getSecKeyCache() map[string][]byte {
 	}
 	return t.secKeyCache
 }
+
+func (t *StateTrie) ReviveTrie(key []byte, prefixKeyHex []byte, proofList [][]byte) error {
+	return t.trie.ReviveTrie(key, prefixKeyHex, proofList)
+}
