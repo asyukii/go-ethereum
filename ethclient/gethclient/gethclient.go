@@ -125,6 +125,24 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 	return &result, err
 }
 
+// GetStorageReviveProof returns the proof for the given keys. Prefix keys can be specified to obtain partial proof for a given key.
+// Both keys and prefix keys should have the same length. If user wish to obtain full proof for a given key, the corresponding prefix key should be empty string.
+func (ec *Client) GetStorageReviveProof(ctx context.Context, account common.Address, keys []string, prefixKeys []string, hash common.Hash) ([]types.ReviveStorageProof, error) {
+	var err error
+	storageResults := make([]types.ReviveStorageProof, 0, len(keys))
+
+	if len(keys) != len(prefixKeys) {
+		return nil, fmt.Errorf("keys and prefixKeys must be same length")
+	}
+
+	if hash == (common.Hash{}) {
+		err = ec.c.CallContext(ctx, &storageResults, "eth_getStorageReviveProof", account, keys, prefixKeys, "latest")
+	} else {
+		err = ec.c.CallContext(ctx, &storageResults, "eth_getStorageReviveProof", account, keys, prefixKeys, hash)
+	}
+	return storageResults, err
+}
+
 // CallContract executes a message call transaction, which is directly executed in the VM
 // of the node, but never mined into the blockchain.
 //

@@ -20,6 +20,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"math/big"
 	"sort"
 	"time"
@@ -124,6 +125,11 @@ type StateDB struct {
 	validRevisions []revision
 	nextRevisionId int
 
+	// state expiry feature
+	enableStateExpiry bool
+	epoch             types.StateEpoch  // epoch indicate stateDB start at which block's target epoch
+	fullStateDB       ethdb.FullStateDB //RemoteFullStateNode
+
 	// Measurements gathered during execution for debugging purposes
 	AccountReads         time.Duration
 	AccountHashes        time.Duration
@@ -169,11 +175,23 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		accessList:           newAccessList(),
 		transientStorage:     newTransientStorage(),
 		hasher:               crypto.NewKeccakState(),
+		epoch:                types.StateEpoch0,
 	}
 	if sdb.snaps != nil {
 		sdb.snap = sdb.snaps.Snapshot(root)
 	}
 	return sdb, nil
+}
+
+// InitStateExpiry it must set in initial, reset later will cause wrong result
+func (s *StateDB) InitStateExpiry(config *params.ChainConfig, height *big.Int, remote ethdb.FullStateDB) *StateDB {
+	if config == nil || height == nil || remote == nil {
+		panic("cannot init state expiry stateDB with nil config/height/remote")
+	}
+	s.enableStateExpiry = true
+	s.fullStateDB = remote
+	s.epoch = types.GetStateEpoch(config, height)
+	return s
 }
 
 // StartPrefetcher initializes a new trie prefetcher to pull in nodes from the
@@ -782,6 +800,11 @@ func (s *StateDB) Copy() *StateDB {
 		journal:              newJournal(),
 		hasher:               crypto.NewKeccakState(),
 
+		// state expiry copy
+		epoch:             s.epoch,
+		enableStateExpiry: s.enableStateExpiry,
+		fullStateDB:       s.fullStateDB,
+
 		// In order for the block producer to be able to use and make additions
 		// to the snapshot tree, we need to copy that as well. Otherwise, any
 		// block mined by ourselves will cause gaps in the tree, and force the
@@ -1358,6 +1381,13 @@ func (s *StateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {
 			slot:    &slot,
 		})
 	}
+}
+
+func (s *StateDB) EnableExpire() bool {
+	if !s.enableStateExpiry {
+		return false
+	}
+	return types.EpochExpired(types.StateEpoch0, s.epoch)
 }
 
 // AddressInAccessList returns true if the given address is in the access list.

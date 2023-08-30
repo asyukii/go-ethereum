@@ -106,6 +106,10 @@ type odrTrie struct {
 	trie *trie.Trie
 }
 
+func (t *odrTrie) ReviveTrie(key []byte, prefixKeyHex []byte, proofList [][]byte) error {
+	panic("not implemented")
+}
+
 func (t *odrTrie) GetStorage(_ common.Address, key []byte) ([]byte, error) {
 	key = crypto.Keccak256(key)
 	var enc []byte
@@ -118,6 +122,10 @@ func (t *odrTrie) GetStorage(_ common.Address, key []byte) ([]byte, error) {
 	}
 	_, content, _, err := rlp.Split(enc)
 	return content, err
+}
+
+func (t *odrTrie) GetStorageAndUpdateEpoch(_ common.Address, key []byte) ([]byte, error) {
+	panic("not implemented")
 }
 
 func (t *odrTrie) GetAccount(address common.Address) (*types.StateAccount, error) {
@@ -200,6 +208,10 @@ func (t *odrTrie) GetKey(sha []byte) []byte {
 }
 
 func (t *odrTrie) Prove(key []byte, proofDb ethdb.KeyValueWriter) error {
+	return errors.New("not implemented, needs client/server interface split")
+}
+
+func (t *odrTrie) ProvePath(key []byte, path []byte, proofDb ethdb.KeyValueWriter) error {
 	return errors.New("not implemented, needs client/server interface split")
 }
 
