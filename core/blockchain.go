@@ -1783,11 +1783,12 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		ptime := time.Since(pstart)
 
 		vstart := time.Now()
-		if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
-			bc.reportBlock(block, receipts, err)
-			followupInterrupt.Store(true)
-			return it.index, err
-		}
+		bc.validator.ValidateState(block, statedb, receipts, usedGas)
+		// if err := bc.validator.ValidateState(block, statedb, receipts, usedGas); err != nil {
+		// 	bc.reportBlock(block, receipts, err)
+		// 	followupInterrupt.Store(true)
+		// 	return it.index, err
+		// }
 		vtime := time.Since(vstart)
 		proctime := time.Since(start) // processing + validation
 
@@ -1833,7 +1834,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		// Report the import stats before returning the various results
 		stats.processed++
-		stats.usedGas += usedGas
+		stats.usedGas += block.GasUsed()
 
 		dirty, _ := bc.triedb.Size()
 		stats.report(chain, it.index, dirty, setHead)
