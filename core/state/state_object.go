@@ -183,36 +183,39 @@ func (s *stateObject) getPendingReviveTrie() (Trie, error) {
 }
 
 // GetState retrieves a value from the account storage trie.
-func (s *stateObject) GetState(key common.Hash) common.Hash {
+func (s *stateObject) GetState(key common.Hash) (common.Hash, error) {
+
+	var err error
+
 	// If we have a dirty value for this state entry, return it
 	value, dirty := s.dirtyStorage[key]
 	if dirty {
-		return value
+		return value, nil
 	}
 	// Otherwise return the entry's original value
-	value = s.GetCommittedState(key)
+	value, err = s.GetCommittedState(key)
 	if value != (common.Hash{}) {
 		s.accessState(key)
 	}
-	return value
+	return value, err
 }
 
 // GetCommittedState retrieves a value from the committed account storage trie.
-func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
+func (s *stateObject) GetCommittedState(key common.Hash) (common.Hash, error) {
 	getCommittedStorageMeter.Mark(1)
 	// If we have a pending write or clean cached, return that
 	if value, pending := s.pendingStorage[key]; pending {
-		return value
+		return value, nil
 	}
 
 	if s.db.EnableExpire() {
 		if revived, revive := s.queryFromReviveState(s.pendingReviveState, key); revive {
-			return revived
+			return revived, nil
 		}
 	}
 
 	if value, cached := s.originStorage[key]; cached {
-		return value
+		return value, nil
 	}
 
 	// If the object was destructed in *this* block (and potentially resurrected),
@@ -222,7 +225,7 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 	//      have been handles via pendingStorage above.
 	//   2) we don't have new values, and can deliver empty response back
 	if _, destructed := s.db.stateObjectsDestruct[s.address]; destructed {
-		return common.Hash{}
+		return common.Hash{}, nil
 	}
 	// If no live objects are available, attempt to use snapshots
 	var (
@@ -240,7 +243,7 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 			sv, err, dbError = s.getExpirySnapStorage(key)
 			if dbError != nil {
 				s.db.setError(dbError)
-				return common.Hash{}
+				return common.Hash{}, dbError
 			}
 			// if query success, just set val, otherwise request from trie
 			if err == nil && sv != nil {
@@ -269,7 +272,7 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		tr, err := s.getTrie()
 		if err != nil {
 			s.db.setError(err)
-			return common.Hash{}
+			return common.Hash{}, err
 		}
 		val, err := tr.GetStorage(s.address, key.Bytes())
 		if metrics.EnabledExpensive {
@@ -287,12 +290,12 @@ func (s *stateObject) GetCommittedState(key common.Hash) common.Hash {
 		}
 		if err != nil {
 			s.db.setError(err)
-			return common.Hash{}
+			return common.Hash{}, err
 		}
 		value.SetBytes(val)
 	}
 	s.originStorage[key] = value
-	return value
+	return value, err
 }
 
 // needLoadFromTrie If not found in snap when EnableExpire(), need check insert duplication from trie.
@@ -312,11 +315,14 @@ func (s *stateObject) needLoadFromTrie(err error, sv snapshot.SnapValue) bool {
 }
 
 // SetState updates a value in account storage.
-func (s *stateObject) SetState(key, value common.Hash) {
+func (s *stateObject) SetState(key, value common.Hash) error {
 	// If the new value is the same as old, don't set
-	prev := s.GetState(key)
+	prev, err := s.GetState(key)
+	if err != nil {
+		return err
+	}
 	if prev == value {
-		return
+		return nil
 	}
 	// New value is different, update and journal the change
 	s.db.journal.append(storageChange{
@@ -325,6 +331,7 @@ func (s *stateObject) SetState(key, value common.Hash) {
 		prevalue: prev,
 	})
 	s.setState(key, value)
+	return nil
 }
 
 func (s *stateObject) setState(key, value common.Hash) {
@@ -454,7 +461,11 @@ func (s *stateObject) updateTrie() (Trie, error) {
 	if s.db.EnableExpire() {
 		for key, _ := range accessStorage {
 			// it must hit in cache
-			value := s.GetState(key)
+			value, err := s.GetState(key)
+			if err != nil {
+				s.db.setError(err)
+				return nil, err
+			}
 			trimmedVal := common.TrimLeftZeroes(value[:])
 			snapshotVal, _ := snapshot.EncodeValueToRLPBytes(snapshot.NewValueWithEpoch(s.db.epoch, trimmedVal))
 			if err := tr.UpdateStorage(s.address, key[:], trimmedVal); err != nil {

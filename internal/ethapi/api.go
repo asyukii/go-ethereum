@@ -727,7 +727,11 @@ func (s *BlockChainAPI) GetProof(ctx context.Context, address common.Address, st
 		if err := storageTrie.Prove(crypto.Keccak256(key.Bytes()), &proof); err != nil {
 			return nil, err
 		}
-		value := (*hexutil.Big)(state.GetState(address, key).Big())
+		stateVal, err := state.GetState(address, key)
+		if err != nil {
+			return nil, err
+		}
+		value := (*hexutil.Big)(stateVal.Big())
 		storageProof[i] = StorageResult{outputKey, value, proof}
 	}
 
@@ -966,7 +970,10 @@ func (s *BlockChainAPI) GetStorageAt(ctx context.Context, address common.Address
 	if err != nil {
 		return nil, fmt.Errorf("unable to decode storage key: %s", err)
 	}
-	res := state.GetState(address, key)
+	res, err := state.GetState(address, key)
+	if err != nil {
+		return nil, err
+	}
 	return res[:], state.Error()
 }
 
