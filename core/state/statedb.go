@@ -294,7 +294,7 @@ func (s *StateDB) AddRefund(gas uint64) {
 // This method will panic if the refund counter goes below zero
 func (s *StateDB) SubRefund(gas uint64) {
 	s.journal.append(refundChange{prev: s.refund})
-	if gas > s.refund { // gas = 4800, s.refund = 0
+	if gas > s.refund {
 		return
 		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, s.refund))
 	}
@@ -362,12 +362,12 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 }
 
 // GetState retrieves a value from the given account's storage trie.
-func (s *StateDB) GetState(addr common.Address, hash common.Hash) (common.Hash, error) {
+func (s *StateDB) GetState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetState(hash)
 	}
-	return common.Hash{}, nil
+	return common.Hash{}
 }
 
 // GetProof returns the Merkle proof for a given account.
@@ -400,12 +400,12 @@ func (s *StateDB) GetStorageProof(a common.Address, key common.Hash) ([][]byte, 
 }
 
 // GetCommittedState retrieves a value from the given account's committed storage trie.
-func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) (common.Hash, error) {
+func (s *StateDB) GetCommittedState(addr common.Address, hash common.Hash) common.Hash {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
 		return stateObject.GetCommittedState(hash)
 	}
-	return common.Hash{}, nil
+	return common.Hash{}
 }
 
 // Database retrieves the low level database supporting the lower level trie ops.
@@ -477,13 +477,11 @@ func (s *StateDB) SetCode(addr common.Address, code []byte) {
 	}
 }
 
-func (s *StateDB) SetState(addr common.Address, key, value common.Hash) error {
+func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
 	stateObject := s.GetOrNewStateObject(addr)
 	if stateObject != nil {
-		err := stateObject.SetState(key, value)
-		return err
+		stateObject.SetState(key, value)
 	}
-	return nil
 }
 
 // SetStorage replaces the entire storage for the specified account with given

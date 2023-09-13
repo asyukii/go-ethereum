@@ -710,9 +710,8 @@ func (do *dbObj) GetState(addrSlice goja.Value, hashSlice goja.Value) goja.Value
 		return nil
 	}
 	hash := common.BytesToHash(h)
-	state, _ := do.db.GetState(addr, hash)
-	val := state.Bytes()
-	res, err := do.toBuf(do.vm, val)
+	state := do.db.GetState(addr, hash).Bytes()
+	res, err := do.toBuf(do.vm, state)
 	if err != nil {
 		do.vm.Interrupt(err)
 		return nil
